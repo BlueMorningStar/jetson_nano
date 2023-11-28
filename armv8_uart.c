@@ -14,7 +14,8 @@
 #define UARTB_BASE              0X70006040
 #define UARTB_MCR               (UARTB_BASE+0X10)
 #define UARTB_FCR               (UARTB_BASE+0X8)
-#define UART_THR_DLAB_0_0       (UARTB_BASE+0x0)      
+#define UART_THR_DLAB_0_0       (UARTB_BASE+0x0)
+#define UART_LCR                (UARTB_BASE+0XC)      
 
 
 #define CLK_RST_BASE             0X60006000
@@ -28,6 +29,8 @@ unsigned char * uart2_fcr;
 unsigned char * uart2_thr;
 unsigned char * uart2_clk_out_enb;
 unsigned char * uart2_clk_source;
+unsigned char * uart2_lcr;
+
 /****************************************************
  * Use Uart2
  *          uart program guidline
@@ -45,7 +48,16 @@ unsigned char * uart2_clk_source;
 int uart_init(void)
 {
     printk("uart init strt------------3\n");
+    //set uart 8 data bits 1 stop bit no parity
+    uart2_lcr = ioremap(UART_LCR,8);
+    if(uart2_lcr == NULL)
+    {
+        printk("uart2_lcr ioremap error-------3\n");
+        return -1;
+    }
+    writel(0x03,uart2_lcr); //     0000 0011
 
+    // baudrate
     //1. Program pin mux settings to select a UART
     //TX
     pinmux_uart2_tx = ioremap(PINMUX_UART2_TX_0,8);

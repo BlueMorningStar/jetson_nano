@@ -7,8 +7,8 @@
 // #define UART_E     0X70006400
 
 #define UART_A_CLK_CTR          0X60006178
-#define PINMUX_BASE             0X70000300
-#define PINMUX_UART2_TX_0       (PINMUX_BASE+0X30F4)
+#define PINMUX_BASE             0X70000000
+#define PINMUX_UART2_TX_0       (PINMUX_BASE+0X30F4)       
 #define PINMUX_UART2_RX_0       (PINMUX_BASE+0X30F8)
 
 #define UARTB_BASE              0X70006040
@@ -122,7 +122,7 @@ int uart_init(void)
     return 0; 
 }
 
-
+ 
 void uart_exit(void)
 {
     iounmap(pinmux_uart2_tx);
@@ -130,6 +130,7 @@ void uart_exit(void)
     iounmap(uart2_mcr);
     iounmap(uart2_fcr);
     iounmap(uart2_thr);
+    iounmap(uart2_lcr);
     printk("uart exit \n")
 }
 

@@ -137,3 +137,67 @@ USB架构
 配置顺序
 ![Alt text](image-7.png)
 参考芯片手册guidline
+
+
+
+2023/12/1 Uboot环境变量
+#pri   //输入pri的命令，查看uboot环境变量
+#setenv ipaddr 192.168.9.33  //设置环境变量
+#saveenv   //保存环境变量
+#pri   //查看
+
+Uboot常用指令
+
+#pci enum;pci
+#tftp u-boot.bin
+#go 0x84000000
+#md    //memory display
+#mw    //memory write 
+
+
+
+2023/12/4 I2C
+
+1.BUS Clear 
+当从机因未知原因持续拉低SDA,主机收到ARB_LOST(ARB_LOST有很多触发原因，需要确认是因该原因导致的);主机触发BUS Clear operation to recover i2c bus
+
+
+2023/12/5 Uboot 编译
+
+$ make distclean 
+$ make p3450-0000_defconfig  /*配置u-boot为jetson nano板子的  
+
+通过qemu调试
+不能在应用层直接运行U-boot和内核   //地址空间不同
+但可以用模拟器在应用空间模拟调试
+
+不能用 gdb vmlinux调试内核，因为在应用空间，不能运行内核空间的程序
+可以用户模拟器qemu来做，在应用空间模拟一个完整的系统
+
+1.安装qemu 
+
+$ sudo apt-get install qemu-system-arm
+$ qemu-system-aarch64 -h //查看全部帮助信息
+$ qemu-system-aarch64 --version //查看qemu版本
+$ qemu-system-aarch64 -machine help  //查看支持的machine
+$qemu-system-aarch64 -cpu help  //查看machine支持的cpu类型
+
+
+可能存在报错的原因
+版本太老，不支持A57 需源码编译
+启动内核时会报错
+
+2.源码编译qemu
+用ubuntu自己下载的版本太老，选择用源码编译的方式安装最新的
+
+https://www.qemu.org/download/ 下载最新的稳定版本 qemu-6.2.0-rc2.tar.xz 
+
+板子上直接下载：
+wget https://download.qemu.org/qemu-6.2.0-rc2.tar.xz
+./configure  //配置，会报错，缺少一些软件需要安装
+
+
+qemu 调试U-boot
+
+下载u-boot.bin
+ 

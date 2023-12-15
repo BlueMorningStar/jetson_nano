@@ -199,5 +199,33 @@ wget https://download.qemu.org/qemu-6.2.0-rc2.tar.xz
 
 qemu 调试U-boot
 
+
+2023/12/11
+1.早上来发现ubuntu黑屏，最后发现原因，根目录挂载满了，解决办法
+![Alt text](image.png)
+
+![Alt text](image-1.png)
+
+![Alt text](image-2.png)
+
+
+2.发现网络没了，通过ifconfig发现网卡关闭,解决办法如下
+
+![Alt text](image-3.png)
+
+给根目录扩容
+不会搞，放弃
+
 下载u-boot.bin
+
+u-boot源码分析
+
+_weak:
+    其实函数名称前面加上 __weak 修饰符，我们一般称这个函数为“弱函数”。假如工程中存在了一个__weak 修饰符的函数，用户还可以在工程中重新定义一个与之同名的函数，最终编译器编译的时候，会选择没有__weak 修饰符的函数，如果用户没有重新定义新的函数，那么编译器就会执行 __weak 声明的函数，并且编译器不会报错
  
+ 宏定义一般在.config里面查看
+ u-boot源码框架
+ ![Alt text](image-4.png)
+
+链接脚本：
+有许多同名函数，要确定哪个参与编译的话，查看u-boot.map文件，能看到是哪个参与了编译

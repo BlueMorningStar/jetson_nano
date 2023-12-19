@@ -229,3 +229,79 @@ _weak:
 
 链接脚本：
 有许多同名函数，要确定哪个参与编译的话，查看u-boot.map文件，能看到是哪个参与了编译
+
+2023/12/19
+u-boot 驱动开发
+1.在u-boot命令菜单加入yhai命令
+a.首先在cmd文件夹里编写yhai.c,代码如下
+
+#include <common.h>
+#include <command.h>
+
+static int do_yhai(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
+{
+    int i;
+    printf("do yhai cmd \n");
+    for(i=0;i<argc;i++)
+    {
+        printf("argv[%d]=%s\n",i,argv[i]);
+    }
+    asm volatile(svc #0);  
+    return 0;
+}
+
+U_BOOT_CMD(
+    yhai, CONFIG_SYS_MAXARGS, 1, do_yhai, //command name, max factors,1 means enter can rerun this command
+    "yhai add cmd test",  //#help can see this description,for exmaple: yhai -- yhai add cmd test
+    "yhai arg"  //#help yhai      
+);
+
+b.然后cmd文件夹里的Makefile里加入一行
+
+obj-$(CONFIG_CMD_YHAI) += yhai.o
+
+c.然后在cmd文件夹里的Kconfig文件里加入
+
+config CMD_YHAI
+	bool "yhai_cmd"
+	default n
+	help
+		yhai do cmd
+
+d.然后在make menuconfig,进入cmd interface里选中yhai，然后保存退出make
+
+
+2.在C语言程序里加入汇编指令
+    asm volatile(svc #0);   //嵌入式汇编代码
+    /*
+    asm:声明是嵌入式汇编 
+    volatile:声明是易变的，避免编译器优化
+    svc #0 ：触发0号中断（同步异常）
+    #运行后看到 Synchronous Abort信息输出，说明同步异常有触发
+    详见 arch/arm/lib/interrupts_64.c的do_syc
+        */
+    
+3.传参
+
+void inc(x)
+{
+    int y;
+    asm volatile("add %w0,%w1, 1":"=r" (y):"r"(x):);
+    return y;
+    //(代码：输出列表：输入列表)
+    // r:编辑为寄存器 =：只读 w:32位  %0：指代第一个参数（如y） %1"指代第二个参数（如x）
+
+}
+
+
+中断
+![Alt text](image-5.png)
+
+中断源种类
+SPI(Shared Peripheral Interrupt 32-101) //外设触发的中断，可多核共享
+SGI(Software Generated Interrupt 0-15)//软件触发的中断，用于多核间通信
+PPI(Private Peripheral Interrupt 16-31)//CPU核私有的中断（如定时器中断，非安全模式下ID为30）
+中断状态 //Inactive-active-pending
+
+分发
+distribution

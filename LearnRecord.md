@@ -272,7 +272,9 @@ d.然后在make menuconfig,进入cmd interface里选中yhai，然后保存退出
 
 
 2.在C语言程序里加入汇编指令
+
     asm volatile(svc #0);   //嵌入式汇编代码
+
     /*
     asm:声明是嵌入式汇编 
     volatile:声明是易变的，避免编译器优化
@@ -285,9 +287,13 @@ d.然后在make menuconfig,进入cmd interface里选中yhai，然后保存退出
 
 void inc(x)
 {
+
     int y;
+
     asm volatile("add %w0,%w1, 1":"=r" (y):"r"(x):);
+
     return y;
+
     //(代码：输出列表：输入列表)
     // r:编辑为寄存器 =：只读 w:32位  %0：指代第一个参数（如y） %1"指代第二个参数（如x）
 
@@ -297,11 +303,330 @@ void inc(x)
 中断
 ![Alt text](image-5.png)
 
+
 中断源种类
+
 SPI(Shared Peripheral Interrupt 32-101) //外设触发的中断，可多核共享
+
 SGI(Software Generated Interrupt 0-15)//软件触发的中断，用于多核间通信
+
 PPI(Private Peripheral Interrupt 16-31)//CPU核私有的中断（如定时器中断，非安全模式下ID为30）
 中断状态 //Inactive-active-pending
 
 分发
+
 distribution
+
+集中管理所有中断源，把最高优先级的中断源，分发给对应的CPU接口
+负责：各个子中断使能，设置触发方式，优先级排序，分发到哪个CPU
+
+GICD_CTLR //分发总使能， bit0=1 enable
+GICD_TYPER //该GIC能够支持最多多少个IRQ硬件中断源（如ITLinesNumber(4-0)=0xb）->最大支持12*31-1=384个IRQ
+GICD_ISENBALERn //使能指定中断源（32位对应32个中断源，Rn:超过32个时）
+GICD_ICENABLERn//清除使能
+GICD_IPRIORITYRn //每八位对应1个中断的优先级，0-255，越低优先级越高
+GICD_ITARGETSRn //每八位对应1个中断要分发到那些CPU(bit0=1 分发cpu0 bit1=1 分发cpu1 ......bit7=1 分发cpu7)
+GICD_IGROUPRn//决定中断时group0,还是group1 (0:group0 1:group1)
+
+CPU接口
+CPU Interfaces //负责发送给CPU核，和中断状态的维护
+GICC_CTLR //打开GIC CPU interface总中断（EnableGrp1 bit1=1）
+GICC_PWR //优先级门槛，只有比该优先级高的才能通过
+GICC_RPR //记录正在处理的IRQ的优先级别，主要用来中断抢占使用的////////////
+GICC_IAR //正处理中断的回答（ID号），CPU读取并处理，并把对应的IRQ状态从PENDING变为ACTIVE
+GICC_EOIR /中断处理完成，写入对应的中断ID号，表示IRQ处理结束，IRQ状态变为DE-ACTIVE
+
+CPU核1
+CPU core //负责程序的执行和数据的处理
+DAIF //中断屏蔽位（为1时屏蔽）
+    // bit[9:6]: D A I F D(断电观察点) A（SError） I(IRQ) F(FIQ)
+
+HCR_EL2 //路由使能
+        // IMO, bit[4] Physical IRQ Routing
+        //当是el2状态时，需IMO=1,打开路由使能，才接收物理的中断信
+    
+
+存储
+
+![Alt text](image-6.png)
+
+EMMC: Embeded MultiMedia Card 内嵌1多媒体卡 BGA封装
+
+EMMC = NandFlash + 控制器+ 标准封装接口
+
+根文件系统
+![Alt text](image-7.png)
+
+文件系统：数据的管理（文件+目录树）  文件（一切皆文件）
+
+根文件系统：最顶层的文件系统，是存放APP、库文件、脚本、配置文件的大仓库
+
+/proc:伪文件系统，查看系统信息（如CPU、men进程）
+例：cat cpuinfo  cat memiofo 
+
+2023/12/28
+文件系统类型
+
+![Alt text](image-8.png)
+
+NFS:主要用于开发调试
+ 
+
+最小系统
+
+用BUSYBOX制作最小根文件系统
+
+file busybox 查看文件类型
+![Alt text](image-9.png)
+确保生成的是arm类型的
+
+ls -l linuxrc 
+![Alt text](image-10.png)
+
+linuxrc是上电运行的第一个程序，解析相关的配置文件
+
+BUSYBOX制作最小根文件系统流程
+
+1.官网下载 https;//busybox.net/
+    或者   wget  https://busybox.net/downloads/busybox-1.34.1.tar.bz2 //最新稳定版
+
+2.   tar -xvf busybox-1.34.1.tar.bz2 //解压
+3.   cd busybox-1.34.1
+4.   make menuconfig
+5.   在Setting里面，选中 [*]Build static binary(no shared libs)
+6.   在Setting里面，添加交叉编译工具 Cross compiler prefix (aarch64-linux-gnu-)
+7.   make //编译
+8.   file busybox //检查生成的类型
+9.   make install
+10.  mkdir dev etc var proc tmp home root mnt sys
+11.  cp -rf ../examples/bootfloppy/etc/* etc/   //拷贝最简的示例配置
+12.  cp /home/yhai/bsp/gcc-linaro-7.3.1-2018.05-x86_64_aarch64-linux-gnu/aarch64-linux-gnu/libc/lib/  . -a   //拷贝编译工具链里的库  (核心，库文件编译工具链提供)
+13.  du -m lib /查看lib库大小
+14.  lib库裁剪，  rm lib/*.a  //删除静态库文件
+15.  aarch64-linux-gnu-strip lib/*  //裁剪掉库里的调试信息
+16.  rm -rf lib/debug
+17. sudo mknod dev/null c 1 3 
+18. sudo mknod dev/console c 5 1
+注：17是建立空设备文件夹，18是串口的文件夹，不建立可能串口不输出打印信息
+
+网络文件系统
+
+安装NFS服务
+
+sudo apt install nfs-kernel-server
+sudo systemctl status nfs-server  //查看服务是否启动
+
+sudo mkdir /nfs
+cp _install -rf /nfs/rootfs
+sudo chmod 777 -R /nfs
+sudo gedit /etc/exprots  //修改配置文件，指定共享目录位置
+在文件末尾追加
+/nfs/rootfs *(rw,sync,no_subtree_check)
+
+rw 允许读写
+
+sync 文件同时写入硬盘和内存
+
+no_subtree_check 即使输出目录是一个子目录，nfs服务器也不检查其父目录的权限，这样可以提高效率
+
+sudo systemctl restart nfs-server  //重启服务（使得前面的配置修改生效）
+
+自环测试：将/nfs/rootfs挂载到/mnt下
+sudo mount -t nfs localhost:/nfs/rootfs/ /mnt/   //测试nfs服务是否安装成功
+
+sudo umount /mnt   //解除挂载
+
+nfs服务开机启动
+sudo systemctl enable nfs-server
+nfs服务开启
+sudo systemctl start nfs-server
+nfs服务关闭
+sudo systemctl stop nfs-server
+
+2023/12/29
+板子从NFS启动
+
+1. 通过putty为板子设置环境变量 
+   
+   setenv bootargs root=/dev/nfs rw nfsroot=192.168.9.119:/nfs/rootfs,v3 console=ttys0 115200 init=/linuxrc ip=192.168.9.9
+
+     //bootargs:启动参数，传递给内核的
+
+     //root=/dev/nfs :指定rootfs所在的设备是NFS
+
+     //nfsroot=192.168.9.119 :nfs/rootfs的位置（是在ip是192.168.9.120的机器上的nfs/rootfs目录下）注意/nfs/rootfs必须和前面nfs服务配置文件设置一致
+
+     //console=ttys0,115200 指定内核启动后串口信息从串口0输出，波特率115200（设置错，将导致没有内核信息输出）
+
+     init=/linuxrc 指定第一个应用程序
+     ip=192.168.9.9  需设置为板子自己的IP
+2. saveenv   //保存
+3. pri bootargs //查看bootargs参数
+4. pci enum;pci  //激活网卡
+5. fstype mmc 1:1  //查看emmc设备（flash） 1号设备的1号分区
+6. ext4ls mmc 1:1  //查看emmc设备的目录和文件信息
+7. ext4load mmc 1:1 0x84000000 /boot/Image  //读ext文件系统中的/boot/Image到内存0x84000000
+8. ext4load mmc 1:1 83100000 /boot/tegra210-p3448-0002-p3449-0000-b00.dtb
+9.  booti 0x84000000-83100000  //启动Image格式的内核
+     //booti : 引导ARM64 Kernel image---- Image
+     //bootz : 引导ARM kernel image-----zImage
+     //bootm : 引导u-boot自定义的kernel image---uImage
+
+
+
+系统配置脚本：
+1. /nfs/rootfs/etc$ cat inittab  #this is run first except when booting in single-user mode
+2. 输入第一条命令，会出现 ::sysinit:/etc/inti.d/rcS //指定系统初始化脚本是rcS  也可指定别的名字，但习惯用rcS
+3. ::askfirst:-/bin/sh   //需要按enter键，才能进入shell
+4. ::restart:/sbin/init  //stuff to do before rebooting
+5. ::ctrlaltdel:/sbin/reboot //ctrlaltdel:软启动
+
+启动脚本
+1. /etc/init.d/rcS  //启动脚本位置 rcS是第一个初始化的脚本
+2. #！ /bin/sh   //指定它是一个shell脚本，固定的格式
+3. /bin/mount -a //挂载/etc/fstab文件指定的所有文件系统
+4. #etc/init.d/rc.local  //扩展子脚本
+5. echo /sbin..mdev > /proc/sys/kernel/hotplug  //设置系统的有热插拔设备时，调用mdev程序
+6. /sbin/mdev -s  //mdev 系统启动和热插拔  或动态加载驱动程序时，自动产生驱动程序所需的节点文件
+7. #./app.exe  //可添加自己的程序，让其上电自己运行
+8. ./main.c 
+9. /sbin/ifconfig eth0 192.168.9.18  //启动后自动配置ip
+10. $ chmod +x init.d/rcS  //添加可执行权限
+11. ![Alt text](image-11.png)
+    
+系统环境变量的设置  /etc/profile
+1. #！bin/sh
+2. export HOSTNAME=yhai
+3. export USER=root
+4. export HOME=root
+5. export PS1="[$USER@HOSTNAME \w]\#"
+6. PATH=/bin:/sbin:/usr/bin:usr/sbin
+7. LD_LIBRARY_PATH=/lib:/usr/lib:$LD_LIBRARY_PATH
+8. export PATH LD_LIBRARY_PATH
+
+上电后应用程序自动执行  /etc/rootfs
+
+#include <stdio.h>
+int main(void)
+{
+    printf("hello world");
+}
+
+RAMDISK 虚拟磁盘
+
+虚拟内存盘，把RAM模拟为硬盘来使用的技术
+//速度快，但掉电信息丢失（但也能避免信息篡改，把最简的rootfs内容做成ramdisk）
+
+制作RAMDISK
+1. cd /nfs
+2. dd if=/dev/zero of=ramdisk.img bs=1k count=8192
+3. 注：dd--用于创作磁盘的命令 if(input file) of(output file) 最终效果：创建了一个空的磁盘（8M），这个大小要跟内核里的设置一样
+4. mkfs.ext2 -i 8192 ramdisk.img -d rootfs
+5. 注： -d--输入内容
+6. gzip -9 -f ramdisk.img  
+7. 注：某种方式压缩
+8. du -h ramdiks.img.gz
+
+板子上加载RAMDISK
+
+
+
+Linux内核
+Linux系统(os)=kernel+fs ,集内核，工具集，各种库，桌面管理器 应用程序为一体的发布包
+例：Debian ubuntu Red Hat Fedora CentOS
+
+Linux内核（kernel）
+是Linux系统的底层核心功能，负责底层硬件打交道，主要有五大模块
+
+![Alt text](image-12.png)
+
+
+Linux内核特性
+1. 免费开源
+2. 可以移植，支持的硬件平台广泛
+3. arm,arm64,powerpc,mips,avr,x86
+4. 高扩展性
+5. 可剪裁，可扩展，可以运行在大型主机，也可以运行在个人计算机上
+6. 高可靠性、稳定性
+7. 稳定性是linux鲜明特点，安装了linux系统的主机
+8. 连续运行一年不宕机是很平常的事情
+9. 超强的网络功能
+10. 真正的多任务，多用户系统
+11. 模块化设计
+12. 模块可以动态加载，卸载，可以减少系统体积，同时可以用来解决冲突问题，模块调试
+
+Linux内核版本
+
+1. cat/proc/version
+2. Linux 5.13.0-30-generic
+3. 第一个数字5：主版本号
+4. 第二个数字13：次版本号
+5. 第三个数字0：修订版本号
+6. 第四个数字30：当前内核版本的第30次微调patch
+
+Linux内核源码目录
+
+1. arch: CPU系统结构：如arm powerpc misps x86 avr arm64
+2. block: 块设备的上层代码:存储设备如（硬盘，nandflash SD卡）
+3. crypyo: 加密功能，如压缩和CRC校验，SHA1加密算法
+4. Document: 内核帮助手册，如设备树的文档
+5. drivers:驱动，如网卡 摄像头 u盘 flash i2c等的驱动程序
+6. fs:文件系统，如ext2 jffs2 yaffs2 sysfs
+7. include:头文件，include/asm平台特有 include/linux是通用的
+8. Init:内核的初始化，如init/main.c
+9. ipc:进程间通讯：如共享内存和信号量
+10. kernel:内核调度算法
+11. mm:内存管理
+12. net:网络协议，如TCP/IP
+13. lib:通用库：如strlen和memcpy之类通用库函数
+14. firmware:固件，二进制程序（固化在设备内运行的）只是读与写
+15. sound：声卡驱动
+
+Linux内核启动分析
+
+三大步
+
+引导---内核初始化---过渡到rootfs
+
+引导
+![Alt text](image-13.png)
+
+第一个文件： arch/arm64/kernel/head.s
+
+1. 自解压 ：32位常用，jetson nan不用
+2. 保存u-boot传入参数（例：用的哪个串口终端;bootargs参数）
+3. 异常级别的设置 一般进入EL2
+   EL0:应用层
+   EL1:内核
+   EL2:虚拟化技术
+   EL3:安全固件模式
+4. CPU初始化
+第二个文件 primary_switch
+5. 使能MMU（内存管理单元）
+6. 内核重定位（地址空间变化了）
+7. 准备0号进程
+8. 设置异常向量表
+9.  跳转到start_kernel
+
+内核初始化
+init/main.c->start_kernel
+1. 内核版本信息
+2. 体系结构和设备树安装
+3. 安装命令行参数（u-boot传入bootargs）
+4. 系统调用初始化
+5. 内存管理初始化
+6. 内核调度初始化
+7. 中断 时钟 定时器初始化
+8. 控制台 进程 初始化
+9. 跳转到rest_init
+
+过渡到rootfs
+init/main.c->rest_init
+1. 创建内核线程
+2. 1号进程（init）-->驱动初始化-->驱动模块初始化-->运行第一个应用程序(如命令行参数指定的进程 Init=/linuxrc)
+
+![Alt text](image-14.png)
+
+
+内核源码跟踪
+1. 查看System.map寻找第一个运行的   （_text）

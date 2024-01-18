@@ -22,6 +22,11 @@
 #define CLK_RST_CONTROLLER_CLK_OUT_ENB_L_0  (CLK_RST_BASE+0X10)
 #define CLK_UARTB_SOURCE        (CLK_RST_BASE+0X17C)
 
+typedef struct {
+    volatile unsigned int32_t UART_A_CLK_CTR;
+
+}
+
 unsigned char * pinmux_uart2_tx;  
 unsigned char * pinmux_uart2_rx;
 unsigned char * uart2_mcr;

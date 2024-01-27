@@ -20,6 +20,18 @@ aarch64-linux-gnu-安装流程：下载安装包--→解压（tar -xvf）--→pw
 VSCODE装 PlatformIO IDE
  
 
+问题： 连接不上github
+1. 下载steam++(b站收藏了)
+2. 下载steam++后，能够访问github，但是下载东西会报port 22 conection refused
+3. 在 /Git/etc/ssh/ssh_config最后加上
+   
+   Host github.com
+   Hostname ssh.github.com
+   Port 443 
+   user git
+
+4. 问题解决 ，检查方法： ssh -T git@github.com
+
 
 
 
@@ -629,4 +641,96 @@ init/main.c->rest_init
 
 
 内核源码跟踪
-1. 查看System.map寻找第一个运行的   （_text）
+1. 查看System.map寻找第一个运行的   (_text)
+
+
+内核移植
+![Alt 123](image-15.png)
+
+
+源码配置编译
+
+菜单配置
+make menuconfig 显示的是.config文件的图形化界面 
+1. make ARCH=arm64 tegra_defconfig //导入官方配置
+    //会从 arch/arm64/configs下查找tegta_defconfig，导入到当前目录，重命名为.config
+2. 从零开始配置，首先删除原配置， mv .config .config.ago
+3. make menuconfig ARCH=arm64 //生成最初始配置界面（如不指定ARCH,，默认的是x86的）当前目录有.config则导入，如无则用默认x86配置生成.config
+4. make savedefconfig //生成defconfig(相比make menuconfig里的SAVE保存的配置，这是最简的)
+5. cp defconfig arch/arm64/configs/yhai_defconfig
+
+
+编译
+1. make //编译所有
+2. make Image //只编译内核
+3. make mudules // 只编译模块
+4. make dtbs  //只编译设备数
+5. make install //安装内核
+6. make modules_install  //安装模块 需要指定安装路径
+7. make clean  //清除编译中产生的临时文件
+8. make ditclean  //清除所有文件（临时文件+配置）
+
+菜单配置的实现
+1. 源码在顶层目录的Kconfig
+2. source "arch/$SRCARCH/Kconfig"  //导入子Kconfig
+
+当前的配置文件
+1. menuconfig之后生成了.config
+2. Makefile在编译时通过读取.config决定谁参与编译
+
+配置头文件
+
+1. include/generated/autoconf.h  //配置头文件（编译后自动生成的）
+2. 通过该文件，可知当前生效的配置是哪些, .h文件是给源码用的
+
+源码编译的实现
+
+1. Makefile编译原则：时间最新 依赖
+2. 变化的文件时间上就是最新的文件，找到最新的文件，重新编译该文件以及依赖该文件的文件
+
+顶层管理
+
+1. 顶层Makefile，负责总体内核的编译连接
+2. ARCH   ?=$(SUBARCH)  //指定zrch(如传参 make ARCH=arm64) 如不指定默认x86
+3. CROSS_COMPILE ?=$(CONFIG_CROSS_COMPILE: "%"=%)  //指定交叉编译工具链 （如传参 make CROSS_COMPILE=aarch64-linux-gnu-） 
+强制写死： CROSS_COMPILE ?=aarch64-linux-gnu-
+
+LD   =$(CROSS_COMPILE)ld
+CC   =$(CROSS_COMPILE)gcc
+
+4. 指定源码子目录
+    drivers-y :=drivers/sound/firmware
+    core-y    +=kernel/certs/mm/fs/ipc/security/crypto/block
+    srctree := .   //指定源码树顶层目录
+    objtree := .   //指定目标文件树顶层目录
+
+    include arch/$(SRCARCH)/Makefile  //指定导入arch的子Makefile 
+5. PHONY :=_all //入口：默认的依赖目标：make时，递归查_all依赖文件
+   //某文件不存在或有更改（时间最新），则把依赖它的文件都重新编译
+
+6. all: mudules  //make all时，递归查modules的依赖
+   %config: scripts_basic outputmakefile FORCE
+
+7. echo :显示信息  
+![Alt text](image-16.png)
+
+
+体系结构的管理
+arch/arm64/Makefile: 编译体系结构的Makefile
+负责本体系结构的相关代码编译  生成内核镜像
+
+//指定源码子目录
+core-y   +=arch/arm64/kernel/arch/arm64/mm
+core-$(CONFIG_NET) += arch/arm64/net  //$(CONFIG_NET)是当配置后，会变为y,或m -> 实现界面配置，那些源码编译或不编译
+
+KBUILD_IMAGE  :=Image.gz
+KBUID_DTBS    :=dtbs
+
+all:  $(KBUILD_IMAGE) $(KBUID_DTBS)  //入口
+
+boot := arch/arm64/boot  //指定存放Image的目录
+
+
+子文件的管理
+
+/init/Makefile

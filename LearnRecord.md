@@ -1,4 +1,5 @@
    /***************记录每天学习内容问题点*******************/
+   用QT做一个小界面，放这些内容，方便分类查询
 2023/9/20
 学习内容：搭建BSP开发环境
 
@@ -734,3 +735,90 @@ boot := arch/arm64/boot  //指定存放Image的目录
 子文件的管理
 
 /init/Makefile
+
+
+2024/3/25
+
+刷整机
+1. 参考  //https://docs.nvidia.com/jetson/archives/l4t-archived/l4t-3261/index.html -> 快速开始 -> 强制恢复模式
+
+2. 载板 B01，J50 的引脚 9 和 10 需插入跳线帽 //位于 Jetson 模块下方的载板边缘，调试usb口的旁边
+3. 用micro usb线，连接板子和电脑，板子重上电  //用usb线来刷机
+4. $ lsusb   //如看到下面信息，表示进入了恢复模式
+  Bus 003 Device 008: ID 0955:7f21 NVIDIA Corp
+
+5. cd ~/bsp/Linux_for_Tegra
+6. sudo ./flash.sh jetson-nano-qspi-sd mmcblk0p1  //刷整个镜像
+
+
+刷完后初始设置
+
+ 没有显示器的情况下，去设置
+
+ microUSB虚拟成串口，进行设置
+
+
+双网卡并行
+1. 一个无线网卡连外网，一个有线网卡连板子调试
+2. 编辑---虚拟网络编辑器---更改设置---选VMnet1---桥接选择USB网卡---确定
+    
+    虚拟机---设置---添加---网络适配器---自定义---选VMnet1---确定
+
+    虚拟机里，右上角，设置一个网卡，连接wifi上外网（wifi用DHCP），一个网卡，连接usb网卡(用手动分配网段，跟板子和主机网卡在同一网段)，连接板子
+
+
+2024/3/27
+有线网卡配置
+1. 在菜单界面里面选配
+2. make menuconfig --- command line interface --- Device access command
+   --- pci
+
+3. 找到  [*] Network device support 
+                   [*]  Realtek 8169 seiries Ethernet controller driver
+
+4. 配置PCI总线支持
+            [*] PCI support 
+                [*] Tegra PCI support
+
+
+USB命令移植
+
+1. usb infor //查看usb的设备信息
+2. 通过测试usb命令，看是否需要移植usb命令。
+3. 如果需要移植，比如先去找最新的uboot支持否，若支持，复制过来，修改makefile和kconfig
+
+2024/3/28
+
+设备树
+
+一种描述硬件  连接信息的数据结构
+
+采用结点（node）和属性（property）嵌套构成树形结构
+
+![alt text](image-17.png)
+
+1. model与compatible用来找到该设备
+2. /是根结点
+3. #address-cells指起始地址为几个byte,#size-cells指长度为几个byte.
+4. reg=<起始地址 长度>
+5. chosen表示虚拟的，bootargs以uboot里设置的为第一优先级，uboot里没有设置，再读取设备树里面的
+6. aliases表示别称
+
+加载设备树
+
+注意：加载自己新的设备树前，一定要清掉之前残留的设备树，
+mw 83100000  0 50 : 从83100000开始写50个byte的0
+cat /sys/firmware/devicetree/base/compatible  //查看当前加载的设备树的名字
+
+如果加载CPU不匹配的设备树，start kernel后无信息输出
+CPU相同的板子，挂载设备树，大概率成功
+
+设备树加载解析
+
+bd //检测板子信息
+arch_number =0x0000000000000000  机器码（板子ID）---在uboot和内核之间今夕对比适配
+![alt text](image-18.png)
+内核启动后 start kernel报检测id错误 Error: unrecognized/unsupported machine id，就是这个不匹配造成的（32位在用，64位取消了该检测）
+
+booti 0x84000000 - 83100000  //0x84000000为内核地址，-表示忽略ramdisk地址，83100000为设备树地址
+ 

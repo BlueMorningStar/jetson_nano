@@ -1,0 +1,44 @@
+/dts-v1/; //设备树的文件版本 v1版本
+/{
+    model="scx_jetson_nano";  //机器名，把板子看成一个设备
+    compatible="nivia,tegra210"; //节点ID:厂商（nvida）+设备型号(tegra210)，用来寻找该设备
+                            //兼容性：驱动和设备匹配的依据
+    #address-cells=<2>;     //设置子节点"reg"属性（cell）的起始地址 起始地址占2个单位（1个单位32字节）
+    #size-cells=<2>;        //设置子节点"reg"属性（cell）的长度，长度占2个单位（1个单位占32字节）
+    cpus{   //cpu 节点
+
+        #address-cells=<1>;
+        #size-cells=<0>;
+        cpu@0{
+            device_type = "cpu";  //设备节点的类型
+            compatible = "arm,cortex-a57"; //节点名
+            reg=<0>;
+        };
+        cpu@1{
+            device_type = "cpu";  //设备节点的类型
+            compatible = "arm,cortex-a57"; //节点名
+            reg=<1>;
+        };
+    };
+
+    memory{
+        device_type = "memory";
+        reg=<0x0 0x80000000 0x0 0xc0000000>;
+
+    };
+    tegra_car:clock@60006000{       //tegra_car：标签
+                compatible = "nvidia,tegra210-car";
+                reg = <0x0 0x60006000 0x0 0x1000>;
+    };
+    uarta:serial@70006000{
+                compatible = "nvidia,tegra210-uart","nvidia,tegra20-uart";
+                reg=<0x0 0x70006000 0x0 0x40>;
+                reg-shift = <2>;
+                interrupts = <GIC_SPI 36 IRQ_TYPE_LEVEL_HIGH>; //中断源指定
+                clocks = <&tegra_car TEGRA210_CLK_UARTA>;
+                clock-names = "serial";
+                resets = <&tegra_car 6>;
+                reset-names = "serial";
+                status="okay";
+    };
+}

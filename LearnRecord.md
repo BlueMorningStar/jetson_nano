@@ -8,6 +8,9 @@
 问题点：出在etc/profile最后加的路径不对
 
 aarch64-linux-gnu-安装流程：下载安装包--→解压（tar -xvf）--→pwd找到bin文件夹路径--→打开etc/profile--→最后一行加上export PATH=$PAHT:/复制的pwd路径--→source etc/profile--→reboot--→重启后aarch64-linux-gnu- -v获得版本就算成功
+
+![alt text](image-21.png)
+
 公司电脑搭建成功
 家里电脑：
 
@@ -839,3 +842,38 @@ booti 0x84000000 - 83100000  //0x84000000为内核地址，-表示忽略ramdisk�
 2. 编译：修改makefile 
    最后一行加入 dtb-y+=yhai.dtb
 3. cat/sys/firmware/devicetree/base/compatible  查看设备树信息，是不是最新的（很关键，因为有可能下载失败，使用的是残存的设备树）
+
+
+2024/4/9
+网卡移植
+
+移植思路顺序：
+内核配置（menuconfig 选配）---设备树修改
+
+2024/4/10
+内核模块三要素
+#include <linux/kernel.h>//内核模块常用头文件
+#include <linux/module.h>//内核模块常用头文件
+1. module_init()  //内核模块的加载入口声明
+2. module_exit()  //内核模块卸载入口
+3. MODULE_LICENSE("GPL); //免费开源声明
+4. MODULE_AUTHOR("scx");  //可选，模块作者声明
+
+设备驱动的分类
+
+1. 字符设备：按字节流顺序传递，如串口，键盘，鼠标等
+2. 块设备： 按块随机访问
+3. 网络设备 ：基于TCP/IP协议栈
+
+设备驱动框架
+
+![alt text](image-20.png)
+
+
+用户层到内核层：在/dev下找到对应设备文件，然后执行读，写等操作
+内核层到硬件层：ioremap完成地址映射
+
+字符设备驱动顺序
+1. 注册设备号
+2. 初始化字符设备
+3. 实现设备的文件操作（open,read,write,close,ioctl（cmd））

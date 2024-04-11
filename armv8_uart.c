@@ -8,19 +8,19 @@
 
 #define UART_A_CLK_CTR          0X60006178
 #define PINMUX_BASE             0X70000000
-#define PINMUX_UART2_TX_0       (PINMUX_BASE+0X30F4)       
-#define PINMUX_UART2_RX_0       (PINMUX_BASE+0X30F8)
+#define PINMUX_UART2_TX_0      *(int*)(PINMUX_BASE+0X30F4)       
+#define PINMUX_UART2_RX_0      *(int*) (PINMUX_BASE+0X30F8)
 
 #define UARTB_BASE              0X70006040
-#define UARTB_MCR               (UARTB_BASE+0X10)
-#define UARTB_FCR               (UARTB_BASE+0X8)
-#define UART_THR_DLAB_0_0       (UARTB_BASE+0x0)
-#define UART_LCR                (UARTB_BASE+0XC)      
+#define UARTB_MCR               *(int*) (UARTB_BASE+0X10)
+#define UARTB_FCR               *(int*)(UARTB_BASE+0X8)
+#define UART_THR_DLAB_0_0       *(int*)(UARTB_BASE+0x0)
+#define UART_LCR                *(int*)(UARTB_BASE+0XC)      
 
 
 #define CLK_RST_BASE             0X60006000
-#define CLK_RST_CONTROLLER_CLK_OUT_ENB_L_0  (CLK_RST_BASE+0X10)
-#define CLK_UARTB_SOURCE        (CLK_RST_BASE+0X17C)
+#define CLK_RST_CONTROLLER_CLK_OUT_ENB_L_0  *(int*)(CLK_RST_BASE+0X10)
+#define CLK_UARTB_SOURCE        *(int*)(CLK_RST_BASE+0X17C)
 
 typedef struct {
     volatile unsigned int32_t UART_A_CLK_CTR;
@@ -50,6 +50,15 @@ unsigned char * uart2_lcr;
 9. Read the UART.LSR register to clear interrupts
 ******************************************************/
 
+typedef struct pinset
+{   
+    int reg;
+    int readdata;
+    int writedata;
+}pinset_t;
+
+pinset_t [7] pinset_array;
+pinset_array[0]->reg=UART_LCR;
 int uart_init(void)
 {
     printk("uart init strt------------3\n");

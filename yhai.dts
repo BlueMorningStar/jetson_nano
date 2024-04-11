@@ -3,6 +3,7 @@
     model="scx_jetson_nano";  //机器名，把板子看成一个设备
     compatible="nivia,tegra210"; //节点ID:厂商（nvida）+设备型号(tegra210)，用来寻找该设备
                             //兼容性：驱动和设备匹配的依据
+    interrupt-parent = <&lic>;
     #address-cells=<2>;     //设置子节点"reg"属性（cell）的起始地址 起始地址占2个单位（1个单位32字节）
     #size-cells=<2>;        //设置子节点"reg"属性（cell）的长度，长度占2个单位（1个单位占32字节）
     cpus{   //cpu 节点
@@ -41,4 +42,51 @@
                 reset-names = "serial";
                 status="okay";
     };
-}
+    chosen{
+        bootargs = "earlycon";
+        stdout-path = "seriaol0:115200n8";
+    }
+    aliases{ //假名
+        serial0=&uarta;
+    }
+    gic: interrupt-controller@50041000{
+        compatible = "arm,gic-400";
+        #interrupt-cells = <3>;
+        interrupt-controller;
+        reg = <0x0 0x50041000 0x0 0x1000>,
+              <0x0 0x50042000 0x0 0x2000>,
+              <0x0 0x50044000 0x0 0x2000>,
+              <0x0 0x50046000 0x0 0x2000>;
+        interrupts = <GIC_PPI  9
+                (GIC_CPU_MASK_SIMPLE(4)|IRQ_TYPE_LEVEL_HIGH)>;
+        interrupt-parent = <&gic>;  //根中断控制器
+    };
+    lic: interrupt-controller@60004000{
+        compatible = "nvidia, tegra210-ictlr";
+        reg = <0x0 0x60004000 0x0 0x40>, //primary controller
+              <0x0 0x60004100 0x0 0x40>, //secondary controller
+              <0x0 0x60004200 0x0 0x40>, //tertiary controller
+              <0x0 0x60004300 0x0 0x40>, //quaternary controller
+              <0x0 0x60004400 0x0 0x40>, //quinary controller  
+              <0x0 0x60004500 0x0 0x40>; //senary controller 
+        interrupt-controller;
+        #interrupt-cells = <3>;
+        interrupt-parent = <&gic>;
+    };
+    timer{
+        compatible = "arm,armv8-timer";
+        interrupts = <GIC_PPI 13
+                     (GIC_CPU_MASK_SIMPLE(4)|IRQ_TYPE_LEVEL_LOW)>,
+                     <GIC_PPI 14
+                     (GIC_CPU_MASK_SIMPLE(4)|IRQ_TYPE_LEVEL_LOW)>,
+                     <GIC_PPI 11
+                     (GIC_CPU_MASK_SIMPLE(4)|IRQ_TYPE_LEVEL_LOW)>,
+                     <GIC_PPI 10
+                     (GIC_CPU_MASK_SIMPLE(4)|IRQ_TYPE_LEVEL_LOW)> ;
+            interrupt-parent = <&gic>;
+    };
+    pmc: pmc@7000e400{
+        compatible = "nvidia,tegra210-pmc";
+        reg = <0x0 0x7000e400 0x0 0x400>;
+    };
+};

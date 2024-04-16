@@ -877,3 +877,17 @@ booti 0x84000000 - 83100000  //0x84000000为内核地址，-表示忽略ramdisk�
 1. 注册设备号
 2. 初始化字符设备
 3. 实现设备的文件操作（open,read,write,close,ioctl（cmd））
+
+
+平台设备
+
+集成在soc系统中的设备
+从resource角度统一起来抽象为platform设备
+IORESOURCE_MEM
+IORESOURCE_IRQ
+
+struct resource{
+    resource_size_t start;  //起始地址
+    resource_size_t end;    //结束地址
+    unsigned long flags;    //资源类型，memory,IRQ等
+}

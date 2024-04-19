@@ -891,3 +891,10 @@ struct resource{
     resource_size_t end;    //结束地址
     unsigned long flags;    //资源类型，memory,IRQ等
 }
+
+统一设备模型
+
+![alt text](image-22.png)
+
+GPIO子系统和PinCtrl子系统
+![alt text](image-23.png)

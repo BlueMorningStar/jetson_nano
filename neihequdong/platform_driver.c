@@ -108,7 +108,7 @@ static struct platform_driver led_driver = {
         .of_match_table = of_plat_match,
     },
     .probe = led_probe,
-    .remove = led_probe,
+    .remove = led_remove,
 };
 module_platform_driver(led_driver); //声明平台设备驱动的入口
 MODULE_LICENSE("GPL v2");//遵循的开源声明

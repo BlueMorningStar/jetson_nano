@@ -39,8 +39,15 @@ VSCODE装 PlatformIO IDE
 
 
 
-
-
+构建源码目录：
+```c
+tar -xvf 	Jetson-210_Linux_R32.6.1_aarch64.tbz2 //它是英伟达提供的BSP框架（不包括源码包）
+$ tar -xvf public_sources.tbz2 //public_sources是英伟达提供的从BSP框架中独立出来的内核源码压缩包。
+$ cd Linux_for_Tegra/source/public
+$ tar -xvf kernel_src.tbz2  //解压Linux内核(解压后生成 kernel  和 hardware )
+                             //hardware 是独立出来的硬件信息部分，包括设备树和头文件
+$ sudo tar -xvf Tegra_Linux_Sample-Root-Filesystem_R32.6.1_aarch64.tbz2  -C ~/bsp/Linux_for_Tegra/rootfs   //解压rootfs到对应目录
+```
 
 
 2023/10/20
@@ -899,6 +906,7 @@ booti 0x84000000 - 83100000  //0x84000000为内核地址，-表示忽略ramdisk�
 
 
 2024/4/9
+
 网卡移植
 
 移植思路顺序：
@@ -931,7 +939,7 @@ booti 0x84000000 - 83100000  //0x84000000为内核地址，-表示忽略ramdisk�
 字符设备驱动顺序
 1. 注册设备号
 2. 初始化字符设备
-3. 实现设备的文件操作（open,read,write,close,ioctl（cmd））
+3. 实现设备的文件操作(open,read,write,close,ioctl(cmd))
 
 
 平台设备
@@ -947,6 +955,33 @@ IORESOURCE_IRQ
         unsigned long flags;    //资源类型，memory,IRQ等
     }
 
+GPIO子系统
+
+    yhai-led-gpiod{
+        compatible = "yhai,led_gpiod";
+        status = "okay";
+        gpios = <&gpio TEGRA_GPIO(J,7) GPIO_ACTIVE_HIGH>;
+        //引用gpio节点的设置，参数个数为2，由gpio-cells = <2>;决定
+        //第一个参数 TEGRA_GPIO(J,7) 是GPIO号  详见设备树文档 tegra186-gpio.txt
+        //第二个参数  GPIO_ACTIVE_HIGH 是电平极性  HIGH表示 1为高电平，0位低电平;反之，low,1为低电平
+    };
+
+用了GPIO子系统，控制管脚输出高低，直接set 1就好了，底层相当于封装了
+
+
+设备树自定义属性
+1. 需要包含头文件 
+```c
+    #include <linux/device.h>
+    #include <linux/of.h>
+```
+2.   
+```c 
+    struct device_node *np=pdev->dev.of_node;          
+     of_property_read_string(np,"yhai_addr",&name);
+    of_property_read_u32(np,"yhai_age",&tmp);
+```
+3. 设备树里加上自定义节点，yhai_addr和yhai_age 
 统一设备模型
 
 ![alt text](image-22.png)
@@ -956,3 +991,41 @@ GPIO子系统和PinCtrl子系统
 
 i2c子系统
 ![alt text](image-25.png)
+
+中断机制
+
+1. Linux将中断分为上半部和下半部，上半部处理紧急的任务;有耗时间的中断时才需要下半部；上下半部是人为分的；上半部优先级相同，先到先处理。
+![alt text](image-26.png)
+
+2. 下半部可能用到的 TASKLET_SOFTIRQ :优先级位于下半部末尾，用于中断推迟执行，运行于中断上下文，不可睡眠1
+3. work_queue用于任务推迟执行，运行于进程上下文，可睡眠
+4. ksoftIRQ:内核线程，最低优先级。
+![alt text](image-27.png)
+5. (1)如果一个任务对时间非常敏感，将其放在上半部中执行
+   (2)如果一个任务和硬件有关，将其放在上半部执行
+   (3)如果一个任务要保证不被其他中断打断，将其放在上半部中执行
+   (4)如果中断要处理的工作本身很少，所有的工作都可在上半部全部完成
+   (5)其他所有任务，考虑放置在下半部执行
+6. 举例分析:当网卡接受到数据包时，通知内核，触发中断，所谓的上半部就是，及时读取数据包到内存，防止因为延迟导致丢失，这是很急迫的工作。读到内存后，对这些数据的处理不再紧迫，此时内核可以去执行中断前运行的程序，而对网络数据包的处理则交给下半部处理。
+![alt text](image-28.png)
+
+7. 下半部处理策略1：tasklet(任务)
+    引入tasklet,最主要的是考虑支持SMP，提高SMP多个cpu的利用率;不同的tasklet可以在不同的CPU上运行。但是tasklet属于中断上下文，因此不能被阻塞，不能睡眠，不能被打断。
+
+
+按键中断
+
+```c
+    //设备树里加上
+    key_irq{
+        compatible = "yhai_key_irq";
+        key_gpio = <&gpio TEGRA_GPIO(J,1) GPIO_ACTIVE_HIGH>
+    };
+```
+
+1. 选择管脚，因为要配成上升沿或下降沿触发中断，所以管脚本身要上拉，必须选择外接上拉的引脚。
+
+Linux内核 时间把控
+
+1. 时钟中断：外部晶振经过升频后，在cpu内部输出的周期性的脉冲信号（边沿触发）->滴答声（节拍）
+   

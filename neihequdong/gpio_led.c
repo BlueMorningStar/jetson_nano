@@ -2,7 +2,7 @@
 #include <linux/module.h>
 #include <linux/property.h>
 #include <linux/gpio/consumer.h>
-
+#include <linux/platform_device.h>
 int led_gpiod_probe(struct platform_device* pdev)
 {
     struct gpio_desc *gpiod = NULL;

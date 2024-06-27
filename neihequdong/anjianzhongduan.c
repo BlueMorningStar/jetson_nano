@@ -22,7 +22,6 @@ unsigned int irq_num;
 
 enum of_gpio_flags flags;
 
-
 irqreturn_t key_interrupt(int irqno,void* devid)
 {
     pr_info("d0 interrupt irqno=%d\n",irqno);
@@ -37,7 +36,7 @@ int keys_probe(struct platform_device *pdev)
     if(key==NULL)
     {
         pr_err("devm_kzalloc fail\n");
-        return - ENMEM;
+        goto devm_kzalloc_err;
     }
     key->dev = &pdev->dev;
     key->name = "scx_key";
@@ -59,7 +58,18 @@ int keys_probe(struct platform_device *pdev)
                      
     pr_notice("keys_probe ok \n");
     return 0;
+
+
+
+    err_of_get_named_gpio_flags:
+        
+    devm_kzalloc_err:
+        return - ENMEM;
 }
+
+
+
+
 
 int keys_remove(struct platform_device *pdev)
 {

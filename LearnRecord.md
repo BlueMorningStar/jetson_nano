@@ -37,7 +37,15 @@ VSCODE装 PlatformIO IDE
 4. 问题解决 ，检查方法： ssh -T git@github.com
 
 
+问题:虚拟机检测不到USB插入
+1. 刷机时，发现检测不到板子，进而发现虚拟机检测不到USB
+2. 解决办法:右键桌面上的计算机 此电脑-》管理-》服务，检查主机系统中VMware USB Arbitration Service能否正常启动。找到VMware USB Arbitration Service看看是否是正在运行，一般默认是手动启动。那么右键选择启动，直接重启虚拟机就能看到上文的USB设备了。
 
+原文链接：https://blog.csdn.net/weixin_41789973/article/details/108624571
+![alt text](image-30.png)
+
+问题:刷机时报return value 8,刷机失败
+解决办法:重新进入恢复模式，再次刷机成功，类似问题可查NVIDIA论坛，论坛网址:
 
 构建源码目录：
 ```c
@@ -1028,4 +1036,202 @@ i2c子系统
 Linux内核 时间把控
 
 1. 时钟中断：外部晶振经过升频后，在cpu内部输出的周期性的脉冲信号（边沿触发）->滴答声（节拍）
-   
+
+2. Jiffies :time_before time_after:查询比较，看jeffies值到了没
+
+3. 定时器(倒数计数): timer_list: 耗尽值（.expires）+回调（.function）
+
+4. 内核调度（切换 并发）:schedule:调度CPU出去
+                        schedule_timeout msleep :调度+超时限制（sleep指进程睡眠，CPU去处理其他进程）
+                        schedule_timeout_interruptible:可被打断
+
+
+中断禁用
+
+```c
+    local_irq_disable()  //禁用本地中断的传递
+                          //local_irq_enable  恢复本地中断的传递
+    
+    local_irq_save(flags)   //保存当前中断状态后，再禁用本地中断的传递 ->
+                            //比local_irq_disable更安全
+    local_irq_restore(flags)  
+
+    disable_irq(irq_num)    //禁用指定中断
+                            //enable_irq(irq_num) 使能指定中断
+                            
+    注：屏蔽中断的时间尽量短，否则会造成别的中断延时过久，甚至丢失，最好能才用屏蔽指定中断的方式
+```
+
+
+并发控制
+
+1. 串行 :顺序执行
+2. 并发 :交替执行，伪同时
+3. 并行 :同时执行
+
+并发带来的问题
+
+1. 竞争: 对资源的争抢 ->逻辑混乱
+2. 互斥: 保证一个资源在一个时间只能被一个任务访问
+
+并发控制的机制
+
+1. 原子操作 :不可分割最小单元
+2. 中断屏蔽 :关中断时间尽量短->有中断
+3. 自旋锁(Spin_lock) : 忙等待->短，多CPU
+4. 互斥锁(mutex_lock): 二元变量，会睡眠 ->多进程
+5. 信号量: 资源计数 ->互斥同步
+6. 读写锁: 只有读不互斥 ->读多写少会被写阻塞->只允许
+7. 顺序锁: 读不会被写阻塞->只允许一个写
+8. 读拷贝更新: 写时拷贝->读时也能写
+
+
+![](image-29.png)
+
+
+内核线程
+
+
+
+虚拟内存
+
+
+原子操作
+```c
+static atomic_t led_atomic = ATOMIC_INIT(1); //定义原子变量，并初始化为1
+
+/*led_open里面写*/
+if(!atomic_dec_and_test(&led_atomic)) //自减1，并测试是否为0
+{
+    atomic_inc(&led_atomic);  //原子变量+1,,恢复自检前状态
+    return -EBUSY;  //已经被打开
+}
+
+/*led_release里面写 */
+atomic_inc(&led_atomic);
+
+```
+
+自旋锁 
+1. 上锁和解锁必须在同一个函数里面，并且上锁期间的代码必须非常短。
+2. 可以用于中断，内部是忙等待，不会睡眠。
+3. 可用于SMP多CPU之间的互斥。（只有自旋锁可以做到）
+4. 比较耗资源。
+
+```c
+    #include <linux/spinlock.h>
+    static DEFINE_SPINLOCK(slock);
+
+    irq_handler()   //适合用于中断处理程序（spin_lock不会睡眠）
+    {
+        spin_lock(&slock); //为避免很卡，可用spin_try_lock()
+        writel(reg_addr,value);//临界区代码（时间尽量短，微秒级）
+        spin_unlock(&slock);    //上锁后必须马上释放(函数内常配对出现)
+    }
+
+
+    spin_lock_irqsave()   //自旋锁+中断屏蔽（避免中断争抢，或临界区刚好调度切换，浪费CPU>10ms）
+    spin_unlock_irq()
+```
+
+互斥体（mutex）
+1. 二元变量，原子操作，可以睡眠，不能用于中断
+```c
+    #include <linux/mutex.h>
+
+    static struct mutex lock; //定义互斥锁
+    mutex_init(&lock);  //初始化互斥锁
+    mutex_lock(&lock);  //上锁（无法获得，就睡眠）
+    mutex_unlock(&lock);  //解锁
+```
+
+信号量
+1. 变量，原子操作，可以睡眠 ->时间长，互斥，同步（资源的计数）
+
+```c
+    #include <linux/semaphore.h>
+    static DEFINE_SEMAPHORE(semlock)  //定义一个初始值为1的信号量
+    down(&semlock); //上锁（如果已经被上锁，就睡眠）
+    up(&semlock)// 解锁
+```
+
+读写锁
+1. 分为读写，让读读不互斥-->细粒度互斥-->读多写少
+2. 分为读写，受细粒度的互斥。
+3. 可多个同时读，但读写，写写互斥。
+4. 大锁还是小锁:互斥的粒度，对驱动上一把大锁，不如以更细粒度的，读写函数为单位进行互斥。
+5. 场景:读多写少（如内存，cache的访问）
+6. 实现:基于自旋锁-->不睡眠，多CPU
+
+```C
+#include <linux/rwlock.h>
+    rwlock_t lock;       //定义锁
+    rwlock_init(&lock);  //初始化锁
+
+    write_lock(&lock); //写锁(基于spin_lock) 
+        //write_trylock        try 不成立即返回
+        //write_lock_irqsave   +中断屏蔽
+        //write_lock_bh        +禁用中断下半部(local_bh_disable())      
+    write_unlock(&lock);//释放写锁
+
+    read_lock(&lock); //读锁 ,为什么需要读锁，主要是判断当前有没有写锁，有写锁就获取不了读锁
+
+    read_unlock(&lock); //释放读锁
+
+    //例：led_driver 的open write. 被多个应用访问时，9个是read,一个是write时，
+    //如何提升效率，互斥意味等待，减少互斥，才能发挥并发的性能
+
+```
+
+顺序锁
+
+顺序锁(seqlock)：重读，弱化读写互斥 -> 只写写互斥(串行) -> 需写优先时
+
+动因 //读写互斥等待问题，让写优先(等待少)，采用把负担丢个读者(重读,冲突判断)
+
+实现  //是基于自旋锁实现的，故不能睡眠	
+
+```c
+    #include <linux/seqlock.h>
+    seqlock_t lock;  //定义锁
+    seqlock_init(&lock); //初始化锁
+
+    write_seqlock(&lock); //写锁(源码用到 spin_lock)  
+            //write_tryseqlock       try 不成立即返回
+            //write_seqlock_irqsave   +中断屏蔽
+            //write_seqlock_bh        +禁用中断下半部(local_bh_disable())
+    write_sequnlock(&lock); //释放写锁
+
+    read_seqbegin(&lock);  //读锁                        
+    read_seqretry(&lock); //重读，看有改写冲突没 -> 弱化 读写不互斥，提升读速度
+            //在顺序锁的一次读操作结束之后,调用顺序锁的重读函数,
+            //用于检查是否有写执行单元对共享资源进行过写操作;如果有,则需要重新读取共享资源
+```
+
+RCU(读拷贝更新)
+
+1. 写时先拷贝更改，合适时，再回调更新，读提速(对读写锁优化)
+2. 当读写互斥时，让读优先(不用等待)，采用写时拷贝方式，把负担丢给写者
+3. 场景:高频读低频写(如内存里的数据查找)，多CPU(因lockless,无需cpu间昂贵的锁同步)
+4. RCU应用广泛， ps -eLf|more 发现很多内核线程用RCU
+5. 拷贝机理，当写的内容更新，把读的指针从老资源指向新资源
+
+多线程
+1. 多线程，共享资源，切换成本低 ，性能远高于多进程，广泛用于Linux的应用开发中
+2. API 
+```c
+    cat /usr/include/pthread.h |grep spin
+    cat /usr/include/pthread.h |grep mutex
+    cat /usr/include/pthread.h |grep pthread
+```
+3. 源码:glibc-2.35/npt1
+   //glibc里有很多应用层C语言库的源码
+
+4. 注意 //多线程互斥，和内核类似，可看成是从内核层搬移到应用层
+    //但线程库，尚不支持 顺序锁和RCU
+
+线程安全:
+1. 当争抢临界资源时，不造成数据二义或逻辑混乱
+2. 线程不安全的例子: （全局变量）静态变量不上锁时
+3. 可重入函数: 被多线程调用，结果一致
+4. 可重入函数一定是线程安全的

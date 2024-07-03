@@ -211,14 +211,17 @@ static int led_remove(struct platform_device *pdev)
 
 
 
-static const struct of_device_id of_led_match[] = {
+static const struct of_device_id of_led_match[] = 
+{
     { .compatible = "yhai-plat", },
     {},  
 };
 MODULE_DEVICE_TABLE(of, of_led_match);
 
-static struct platform_driver led_driver = {
-    .driver = {
+static struct platform_driver led_driver = 
+{
+    .driver = 
+	{
         .name   = "yhai platform led" ,
         .owner = THIS_MODULE,
         .of_match_table = of_led_match,

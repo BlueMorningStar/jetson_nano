@@ -1300,3 +1300,66 @@ MMU
 
 1. 多进程间通信，多进程映射到同一物理内存
 2. 场景:高并发，数据量大
+
+
+
+摄像头框架
+1. 打开-->查询设备-->申请帧缓冲-->启动采集 -->环形缓冲区(出队，即取一帧；入队，即用完把空间还回去)-->停止-->释放-->关闭
+![alt text](image-31.png)
+
+```c
+//1.打开视频设备
+    fd=open("/dev/video0"),O_RDWR);
+//2.查询设备能力，图片(视频)格式
+    ioctl(fd,VIDIOC_QUERYCAP,&capability);  //查询设备能力
+    ioctl(fd,VIDIOC_S_FMT,&format);     //查询格式
+//3. 申请帧缓冲
+    ioctl(fd,VIDIOC_REQBUFS,&reqbufs); //申请多个缓冲区
+    ioctl(fd,VIDIOC_QUERYBUF,&vbuf);    //
+    mmap(vbuf,length,PROT_READ|PROT_WRITE);
+    ioctl(fd,VIDIOC_QBUF,&vbuf);
+//4.启动采集
+    ioctl(fd,VIDIOC_STREAMON,&type);
+//5.出队
+    ioctl(fd,VIDIOC_DQBUF,&vbuf);
+//6.停止
+    ioctl(fd,VIDIO_STREAMOFF,&type);
+//7.释放
+    ioctl(fd,VIDIOC_DQBUF,&vbuf);
+    munmap(bufs[i].start,bufs[i].length);
+//8.关闭视频设备
+    close(fd);
+```
+
+v4l2应用层开发
+
+ 虚拟机能识别usb摄像头
+ 1. vmware-->虚拟机-->可移动设备-->USB camera-->连接
+ 2. ```c
+    ls -l /dev/video0*  
+    /*查看摄像头有生成没
+    /dev/video0 电脑自带摄像头
+    /dev/video1 其他摄像头
+    让摄像头在ubuntu里能识别到，成功会自动生成 /dev/video
+    */
+   lsusb -t 
+   //查看usb树信息   
+    sudo cat /sys/kernel/debug/usb/devicec  |grep 4002 -A 5
+    //不加 -A 5 只显示一行，加-A 5可以显示5行
+    //通过id,查找设备厂商信息
+    ```
+ 3. 用v4l2工具查看
+   ```c
+   v4l2 -ctl -d /dev/video0 --all
+   ```
+ 4. sudo apt-get install guvcview
+ 5. guvcview -d /dev/video0  //显示
+   
+ 图片存储和显示格式
+ 1. BMP: 位图编码格式中的无损格式。由信息头数据信息等组成
+ 2. JPG: 位图编码格式中的有损压缩格式
+ 3. RGB: 色彩模式，RGB888,红绿蓝各占一个字节，一个点需要24bits.
+ 4. YUV: 电视模拟信号的颜色编码方法(属于PAL),Y代表亮度，UV代表色度，U(Cr相当于红色偏差),V(Cb相当于蓝色偏差)，相比RGB,占用频宽小
+ 5. 在视频采集编码时，RGB数据量太大，且发现人眼对亮度更敏感，故采用了亮度和色差来表示图像。4:2:2表示每4个像素点采样----4 Y分量，2 U分量， 2 V分量
+ 6. CIF: 视频YUV帧的文件存储格式
+ 7. D1: 4*CIF

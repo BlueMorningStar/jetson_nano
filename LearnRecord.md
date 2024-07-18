@@ -234,7 +234,20 @@ Uboot常用指令
 
     $ make distclean 
 
-    $ make p3450-0000_defconfig  /*配置u-boot为jetson nano板子的  
+    //$ make p3450-0000_defconfig  /*配置u-boot为jetson nano板子的  
+
+    $ export LOCALVERSION=-tegra //导入配置前需设置它，
+    //否则后面安装 modules_install后, rootfs/lib/modules下不是4.9.253-tegra 而是4.9.253， 
+    //导致内核模块.ko 都不能加载, 启动后用lsmod可查看是空的
+
+    $ make tegra_defconfig  //导入官方配置( 见 kernel-4.9\arch\arm64\configs\tegra_defconfig)
+
+    //注意修改前 ，需备份原镜像（如kernel下的Image 和dtb）
+    $ cp arch/arm64/boot/Image  ~/Linux_for_Tegra/kernel/Image    //安装内核
+    $ cp arch/arm64/boot/dts/*.dt*   ~/Linux_for_Tegra/kernel/dtb/        //安装设备树*/
+    $ sudo make  modules_install INSTALL_MOD_PATH=~/Linux_for_Tegra/rootfs  //安装模块(ko) 到指定位置	
+      注意  ~/Linux_for_Tegra 目录 其实就是~/bsp/Linux_for_Tegra 的软连接 （类似快捷方式）
+      Linux_for_Tegra/kernel/ 是英伟达刷机的内核镜像存放目录，当你采用usb线刷机时，必须你的Image拷贝到该目录。
 
 通过qemu调试
 
@@ -1344,13 +1357,13 @@ v4l2应用层开发
     */
    lsusb -t 
    //查看usb树信息   
-    sudo cat /sys/kernel/debug/usb/devicec  |grep 4002 -A 5
+    sudo cat /sys/kernel/debug/usb/devices  |grep 4002 -A 5
     //不加 -A 5 只显示一行，加-A 5可以显示5行
     //通过id,查找设备厂商信息
     ```
  3. 用v4l2工具查看
    ```c
-   v4l2 -ctl -d /dev/video0 --all
+   v4l2-ctl -d /dev/video0 --all
    ```
  4. sudo apt-get install guvcview
  5. guvcview -d /dev/video0  //显示
@@ -1363,3 +1376,22 @@ v4l2应用层开发
  5. 在视频采集编码时，RGB数据量太大，且发现人眼对亮度更敏感，故采用了亮度和色差来表示图像。4:2:2表示每4个像素点采样----4 Y分量，2 U分量， 2 V分量
  6. CIF: 视频YUV帧的文件存储格式
  7. D1: 4*CIF
+
+
+CSI摄像头移植(OV5647)
+
+背景
+1. 常见Mipi sensor  //sony: imx477,imx274,imx286,imx307,imx385
+                    //ov: ov2718, ov12895, 0v2710等
+                    //ar: ar0238
+                    //国产: gc1024、gc1034
+2. 如何移植  //1.内核源码里面有无该驱动
+            //2.无则找第三方源码，移植过来
+            //3.结对对比
+3. 相近芯片对比 //jetson不支持ov5647 ,但已支持 0v5693 ->可在ov5693驱动和设备树基础上移植支持ov5647
+4. 平台结对 //jetson不支持0v5647 但树莓派已支持  jetson树莓派都支持imx219 -> 可对比查看驱动和设备树的差异
+   设备树结对  //jetson ok的ov5693和imx219的设备树  ->对比后知道哪些是针对不同摄像头，需改的部分
+
+移植
+1. 将树莓派里ov5647驱动拷贝到nvdia下面
+2. 修改makefile和Kconfig加入编译

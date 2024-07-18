@@ -111,6 +111,7 @@ static int led_probe(struct platform_device *pdev)
 		goto err1;
      }
 
+	//获取寄存器地址
 	res1 = platform_get_resource(pdev, IORESOURCE_MEM, 0); 
 	if (res1 == NULL) {
 		printk("res1 platform_get_resource fail \n");

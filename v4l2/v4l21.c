@@ -39,7 +39,7 @@ int get_capability(int fd)
     _u32 reserved[3];
     }
     */
-
+   
    ret = ioctl(fd,VIDIOC_QUERYCAP,&cap); //查看设备能力信息
    if(ret < 0)
    {

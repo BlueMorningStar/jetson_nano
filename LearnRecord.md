@@ -56,6 +56,33 @@ $ tar -xvf kernel_src.tbz2  //解压Linux内核(解压后生成 kernel  和 hard
                              //hardware 是独立出来的硬件信息部分，包括设备树和头文件
 $ sudo tar -xvf Tegra_Linux_Sample-Root-Filesystem_R32.6.1_aarch64.tbz2  -C ~/bsp/Linux_for_Tegra/rootfs   //解压rootfs到对应目录
 ```
+//vim + cscope + ctags
+vim常用命令
+```c
+ctags -R  //生成符号关联
+cscope -Rbkq  //生成索引库
+vim . //打开目录编辑
+ctrl + ]  //调到定义处
+ctrl + o  //返回上一次位置
+          //ctrl + i 再返回
+g f       //跳到光标停留的include的头文件里
+d w       //删除个字符串
+u         //撤销修改
+：cs f f driver.c  //搜索driver.c文件
+g d     //选中当前光标处的字符串
+        //再 n 查找下一个
+ctrl shift - s  //查找光标处的字符串
+                // j: 下一条  k: 上一条  f: 下一页  b: 上一页 shift+g :到末尾
+cs f s attach //全局 搜索字符串  attach
+ctrl + w v //垂直分割窗口
+           // ctrl+W  w 可在窗口间切换
+ctrl + 变大字体
+:e .    //编辑当前目录
+//cscope显示没有连接
+//解决办法 /
+:cs add cscope.out
+```
+
 
 
 2023/10/20
@@ -906,7 +933,7 @@ arch_number =0x0000000000000000  机器码（板子ID）---在uboot和内核之�
 内核启动后 start kernel报检测id错误 Error: unrecognized/unsupported machine id，就是这个不匹配造成的（32位在用，64位取消了该检测）
 
 booti 0x84000000 - 83100000  //0x84000000为内核地址，-表示忽略ramdisk地址，83100000为设备树地址
- 
+
 
  2024/4/1
  虚拟机扩容
@@ -988,7 +1015,65 @@ GPIO子系统
     };
 
 用了GPIO子系统，控制管脚输出高低，直接set 1就好了，底层相当于封装了
+应用层在/sys目录下能操作(查看调试信息用)
 
+最简读写文件(在/sys下)
+设备树
+```c
+sys_rw_led{ //对应生成/sys/decices/sys_rw_led/led_gpio
+    compatible = "sys_rw_led"
+    led_gpio = <&gpio TEGRA_GPIO(J,7) GPIO_ACTIVE_HIGH>;
+}
+```
+驱动核心部分代码
+```c
+    static struct device_attribute dev_attr_file = {
+        .attr = {
+            .name = "led_gpio",
+            .mode = (S_IRUGO| S_IWUSR)
+        },
+        .store = led_store,
+        .show = led_show,   //如果无需读的功能，可设为null,且删除前面的S_IRUGO
+    };
+
+    static ssize_t led_store(struct device*dev, struct device_attribute*attr, const char*buf, size_t count)
+    {
+        //写文件，控制gpio输出（echo 1 > led_gpio）
+        if(buf[0] == '0')
+        {
+            gpio_diretion_output(led_gpio, 0);
+        }
+        else if(buf[0] == '1')
+        {
+            gpio_diretion_output(led_gpio, 1);
+        }
+        printk(KERN_ERR"led_gpio_store %c\n",buf[0]);
+        return count;
+    }
+
+    ssize_t led_show(struct device *dev, struct device_attribute *attr, char* buf)
+    {
+        printk("ked_show go\n");
+        return 0;
+    }
+
+
+    //根据设备树节点属性，创建相应的属性文件 /sys/devices/sys_rw/led/led_gpio
+    device_create_file(&pdev->dev,&dev_attr_file);//device_create_file里面是调用了sysfs_create_file
+
+    //remove函数里加入
+    device_remove_file(&pdev->dev, &dev_attr_file);
+```
+
+创建多个文件
+```c
+//设备树
+sys_rw_gpio{
+    compatible = "yhai,sys_rw_gpio";
+    led_gpio = <&gpio TEGRA_GPIO(J,7) GPIO_ACTIVE_HIGH>;
+    smoke_sensor_gpio = <&gpio TEGRA_GPIO(S,5) GPIO_ACTIVE_HIGH>;
+};
+```
 
 设备树自定义属性
 1. 需要包含头文件 
@@ -1023,14 +1108,18 @@ i2c子系统
 4. ksoftIRQ:内核线程，最低优先级。
 ![alt text](image-27.png)
 5. (1)如果一个任务对时间非常敏感，将其放在上半部中执行
+6. 
    (2)如果一个任务和硬件有关，将其放在上半部执行
+
    (3)如果一个任务要保证不被其他中断打断，将其放在上半部中执行
+
    (4)如果中断要处理的工作本身很少，所有的工作都可在上半部全部完成
+
    (5)其他所有任务，考虑放置在下半部执行
-6. 举例分析:当网卡接受到数据包时，通知内核，触发中断，所谓的上半部就是，及时读取数据包到内存，防止因为延迟导致丢失，这是很急迫的工作。读到内存后，对这些数据的处理不再紧迫，此时内核可以去执行中断前运行的程序，而对网络数据包的处理则交给下半部处理。
+7. 举例分析:当网卡接受到数据包时，通知内核，触发中断，所谓的上半部就是，及时读取数据包到内存，防止因为延迟导致丢失，这是很急迫的工作。读到内存后，对这些数据的处理不再紧迫，此时内核可以去执行中断前运行的程序，而对网络数据包的处理则交给下半部处理。
 ![alt text](image-28.png)
 
-7. 下半部处理策略1：tasklet(任务)
+1. 下半部处理策略1：tasklet(任务)
     引入tasklet,最主要的是考虑支持SMP，提高SMP多个cpu的利用率;不同的tasklet可以在不同的CPU上运行。但是tasklet属于中断上下文，因此不能被阻塞，不能睡眠，不能被打断。
 
 

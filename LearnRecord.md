@@ -47,6 +47,16 @@ VSCODE装 PlatformIO IDE
 问题:刷机时报return value 8,刷机失败
 解决办法:重新进入恢复模式，再次刷机成功，类似问题可查NVIDIA论坛，论坛网址:
 
+
+问题：nfs遇到的n个问题
+1. 正点原子到uboot nfs版本是V2,UBUNTU都是V4,版本不匹配
+2. 解决办法，参考     https://blog.csdn.net/weixin_44550536/article/details/135757816
+3. 1，![alt text](image-38.png)  开启8个V2的服务
+4. ![alt text](image-39.png)
+5. 一定要加上no_squash_root,不然不行
+![alt text](image-40.png)
+![alt text](image-41.png)
+
 构建源码目录：
 ```c
 tar -xvf 	Jetson-210_Linux_R32.6.1_aarch64.tbz2 //它是英伟达提供的BSP框架（不包括源码包）
@@ -943,7 +953,7 @@ booti 0x84000000 - 83100000  //0x84000000为内核地址，-表示忽略ramdisk�
  4. sudo mount /dev/sdb1 /home/yhai/bsp
  5. 开机自动挂载
    sudo gedit /etc/fstab  在最后一行加上
-   UUID=cf557822-f92e-48a1-bb4f-e93d2f4f5702  /home/yhai/bsp 	    ext3    defaults       0       1
+   UUID=cf557822-f92e-48a1-bb4f-e93d2f4f5702  /home/yhai/bsp 	    ext3    defaults   0       1
 
 
 从零开始写设备树文件
